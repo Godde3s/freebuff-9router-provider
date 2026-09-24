@@ -127,16 +127,25 @@ Short version — in the 9router dashboard:
 
 ## Models
 
-| Upstream id | Aliases | Access |
-|---|---|---|
-| `z-ai/glm-5.3-flash` | `glm-5.3-flash`, `glm` | **unmetered** at full access — default |
-| `deepseek/deepseek-v4-flash` | `deepseek-v4.1-flash`, `deepseek` | **unmetered** at full access |
-| `mimo/mimo-v2.5` | `mimo-2.6-flash`, `mimo` | **unmetered** at full access |
-| `upstage/solar-mini4` | `solar-mini-4`, `solar` | **unmetered**, 524K ctx, text only |
-| `minimax/minimax-m3` | `minimax-m3`, `minimax` | capacity-dependent |
-| `openai/gpt-6-luna` | `gpt-6-luna`, `luna` | US / paid plans |
-| `stealth/space-bunny-alpha` | `space-bunny-alpha` | beta, retains prompts |
-| `google/gemini-3.8-flash` | `gemini-3.8-flash` | paid plans |
+Naming first, because it trips everyone: **the upstream ids are legacy and
+do not track the served generation.** Freebuff kept the old ids so saved
+picks and allowlists would not break — so `deepseek/deepseek-v4-flash`
+really serves **DeepSeek V4.1 Flash** (since 2026-09-10) and
+`mimo/mimo-v2.5` really serves **MiMo 2.6 Flash** (since 2026-09-21 —
+upstream's own words: "the v2.5 in the id is history, not the model"). The
+"Official name" column below is Freebuff's own `displayName` from its
+public catalog, and that is what this provider reports.
+
+| Official name (Freebuff catalog) | Upstream id (legacy) | Aliases | Access |
+|---|---|---|---|
+| GLM 5.3 Flash | `z-ai/glm-5.3-flash` | `glm-5.3-flash`, `glm` | **unmetered** at full access — default |
+| DeepSeek V4.1 Flash | `deepseek/deepseek-v4-flash` | `deepseek-v4.1-flash`, `deepseek` | **unmetered** at full access |
+| MiMo 2.6 Flash | `mimo/mimo-v2.5` | `mimo-2.6-flash`, `mimo-v2.5`, `mimo` | **unmetered** at full access |
+| Solar Mini 4 | `upstage/solar-mini4` | `solar-mini-4`, `solar` | **unmetered**, 524K ctx, text only |
+| MiniMax M3 | `minimax/minimax-m3` | `minimax-m3`, `minimax` | capacity-dependent |
+| GPT-6 Luna | `openai/gpt-6-luna` | `gpt-6-luna`, `luna` | US / paid plans |
+| Space Bunny Alpha | `stealth/space-bunny-alpha` | `space-bunny-alpha` | beta, retains prompts |
+| Gemini 3.8 Flash | `google/gemini-3.8-flash` | `gemini-3.8-flash` | paid plans |
 
 `fb9r models` prints this table anytime. Aliases are case-insensitive and resolved server-side by the provider.
 
@@ -172,7 +181,7 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
 ## Tests
 
 ```bash
-npm test        # 44 tests, mock upstream — no account needed
+npm test        # 46 tests, mock upstream — no account needed
 ```
 
 Covers: the canonical-opening envelope (pure + idempotent, no duplicate
@@ -202,7 +211,8 @@ See [docs/POLICY.md](./docs/POLICY.md) for the reasoning and the upstream contex
 
 **Full breakdown with real numbers:** [docs/LIMITS.md](./docs/LIMITS.md) —
 seat rules, quota pools (4/day · 14/week · 40/month for premium models;
-GLM 5.3 Flash / DeepSeek V4 Flash / MiMo / Solar Mini 4 unmetered), IP and
+GLM 5.3 Flash / DeepSeek V4.1 Flash / MiMo 2.6 Flash / Solar Mini 4
+unmetered), IP and
 country gates, trust levels, availability windows, and an answer to "can a
 new proxy lift these limits?" (short version: it solves plumbing, not
 server-enforced caps).
