@@ -222,40 +222,51 @@ test('review: chat 409 superseded maps to 409, resets the seat, re-admits next c
   } finally { await down(); }
 });
 
-// v1.1.1 — naming consistency with the official Freebuff catalog.
-// The wire ids are legacy/undated upstream; the LABELS must always be the
-// official displayNames, and both dated + undated spellings must resolve.
-test('catalog labels match the official Freebuff displayNames exactly', async () => {
+// v1.1.2 — naming rule: the label always mirrors the wire id's own naming,
+// so id, label and wire traffic agree. The two upstream legacy slugs
+// (deepseek-v4-flash, mimo-v2.5) are labeled by the id itself.
+test('catalog labels mirror the wire ids exactly', async () => {
   const { MODELS } = await import('../src/constants.js');
   const byId = Object.fromEntries(MODELS.map((m) => [m.id, m.label]));
 
-  // These strings are the official catalog's displayName fields — do not
-  // "fix" them by dropping the .1 / swapping 2.5↔2.6; verify upstream first.
   assert.equal(byId['z-ai/glm-5.3-flash'], 'GLM 5.3 Flash');
-  assert.equal(byId['deepseek/deepseek-v4-flash'], 'DeepSeek V4.1 Flash');
-  assert.equal(byId['mimo/mimo-v2.5'], 'MiMo 2.6 Flash');
+  assert.equal(byId['deepseek/deepseek-v4-flash'], 'DeepSeek V4 Flash');
+  assert.equal(byId['mimo/mimo-v2.5'], 'MiMo 2.5');
   assert.equal(byId['upstage/solar-mini4'], 'Solar Mini 4');
   assert.equal(byId['minimax/minimax-m3'], 'MiniMax M3');
   assert.equal(byId['openai/gpt-6-luna'], 'GPT-6 Luna');
   assert.equal(byId['stealth/space-bunny-alpha'], 'Space Bunny Alpha');
   assert.equal(byId['google/gemini-3.8-flash'], 'Gemini 3.8 Flash');
+
+  // No label may leak the upstream marketing spellings (V4.1 / 2.6).
+  for (const m of MODELS) {
+    assert.ok(!/v4\.1|2\.6/i.test(m.label), `label ${m.label} leaks a marketing version`);
+  }
 });
 
-test('both dated and undated model spellings resolve to the same wire id', async () => {
+test('labels, aliases and pasted spellings all resolve to the wire id', async () => {
   const { resolveModel } = await import('../src/constants.js');
 
-  // DeepSeek: undated wire id and dated display spelling
+  // DeepSeek: label form, alias, short form — same wire id
   assert.equal(resolveModel('deepseek-v4-flash'), 'deepseek/deepseek-v4-flash');
-  assert.equal(resolveModel('deepseek-v4.1-flash'), 'deepseek/deepseek-v4-flash');
-  assert.equal(resolveModel('DeepSeek V4.1 Flash'), 'deepseek/deepseek-v4-flash');
+  assert.equal(resolveModel('DeepSeek V4 Flash'), 'deepseek/deepseek-v4-flash');
+  assert.equal(resolveModel('deepseek-flash'), 'deepseek/deepseek-v4-flash');
+  assert.equal(resolveModel('deepseek'), 'deepseek/deepseek-v4-flash');
 
-  // MiMo: legacy id spelling and served-generation spelling
-  assert.equal(resolveModel('mimo-v2.5'), 'mimo/mimo-v2.5');
+  // MiMo: label form, both alias spellings, short form — same wire id
   assert.equal(resolveModel('mimo-2.5'), 'mimo/mimo-v2.5');
-  assert.equal(resolveModel('mimo-2.6-flash'), 'mimo/mimo-v2.5');
-  assert.equal(resolveModel('MiMo 2.6 Flash'), 'mimo/mimo-v2.5');
+  assert.equal(resolveModel('mimo-v2.5'), 'mimo/mimo-v2.5');
+  assert.equal(resolveModel('MiMo 2.5'), 'mimo/mimo-v2.5');
+  assert.equal(resolveModel('mimo'), 'mimo/mimo-v2.5');
 
-  // GLM: dated and short forms
+  // GLM: label form and short form
   assert.equal(resolveModel('glm-5.3-flash'), 'z-ai/glm-5.3-flash');
   assert.equal(resolveModel('GLM 5.3 Flash'), 'z-ai/glm-5.3-flash');
+  assert.equal(resolveModel('glm'), 'z-ai/glm-5.3-flash');
+
+  // The upstream marketing spellings are NOT exposed as model names.
+  assert.equal(resolveModel('deepseek-v4.1-flash'), null);
+  assert.equal(resolveModel('mimo-2.6-flash'), null);
+  assert.equal(resolveModel('DeepSeek V4.1 Flash'), null);
+  assert.equal(resolveModel('MiMo 2.6 Flash'), null);
 });

@@ -5,8 +5,8 @@ The complete, sourced list of what the free tier actually enforces lives in
 levels, availability windows. This page is the *design* side: what this
 provider does on purpose, and what it refuses to do on purpose.
 
-Freebuff gives free access to strong models (GLM 5.3 Flash, DeepSeek V4.1
-Flash, MiMo 2.6 Flash, Solar Mini 4 are unmetered at full access) funded by
+Freebuff gives free access to strong models (GLM 5.3 Flash, DeepSeek V4
+Flash, MiMo 2.5, Solar Mini 4 are unmetered at full access) funded by
 text ads shown inside Freebuff's own products. Its servers run explicit
 anti-abuse checks against third-party callers — that is documented in the
 vendor's own tree (`foreign-client-signals.ts`, `docs/freebuff-abuse-

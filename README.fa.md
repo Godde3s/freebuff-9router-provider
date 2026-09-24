@@ -1,6 +1,6 @@
 # freebuff-9router-provider — راهنمای فارسی
 
-**استفاده از مدل‌های رایگان Freebuff (GLM 5.3 Flash و DeepSeek V4.1 Flash و MiMo 2.6 Flash و…) به‌عنوان یک Provider داخل [9router](https://github.com/decolua/9router)** — یا هر ابزاری که با API اوپن‌ای‌آی حرف بزند.
+**استفاده از مدل‌های رایگان Freebuff (GLM 5.3 Flash و DeepSeek V4 Flash و MiMo 2.5 و…) به‌عنوان یک Provider داخل [9router](https://github.com/decolua/9router)** — یا هر ابزاری که با API اوپن‌ای‌آی حرف بزند.
 
 این پروژه **خودش روتر نیست**؛ یک سرویس کوچک محلی (بدون هیچ وابستگی، Node ≥ 18) است که:
 
@@ -87,18 +87,18 @@ fb9r serve --api-key mylocal  # اجباری‌کردن کلید برای درخ
 
 ## مدل‌ها
 
-اول نام‌گذاری را روشن کنیم چون همه را گیج می‌کند: **شناسه‌های (id) آپستریم قدیمی‌اند و نسل واقعی مدل را نشان نمی‌دهند.** Freebuff آیدی‌های قدیمی را نگه داشته تا انتخاب‌های ذخیره‌شده و لیست‌های سفید کلاینت‌ها نشکنند — یعنی `deepseek/deepseek-v4-flash` واقعاً سروِ **DeepSeek V4.1 Flash** است (از ۲۰۲۶-۰۹-۱۰) و `mimo/mimo-v2.5` واقعاً سروِ **MiMo 2.6 Flash** است (از ۲۰۲۶-۰۹-۲۱ — به نقل خود آپستریم: «v2.5 داخل آیدی تاریخ است، نه مدل»). ستون «نام رسمی» همان `displayName` کاتالوگ عمومی خود Freebuff است و همین است که این Provider گزارش می‌کند.
+یک قانون نام‌گذاری، تا هیچ غافلگیری‌ای نباشد: **ستون «مدل» دقیقاً همان آیدی‌ای است که این Provider روی سیم می‌فرستد** — هرچه در 9router تنظیم می‌کنی همان است که Freebuff دریافت می‌کند. دو تا از آیدی‌های آپستریم اسلاگ‌های قدیمی‌اند که Freebuff عمداً در به‌روزرسانی‌های مدل ثابت نگه‌شان داشته (`deepseek/deepseek-v4-flash` و `mimo/mimo-v2.5`)؛ این Provider آن ردیف‌ها را با خودِ آیدی سیمی لیبل می‌زند، تا آیدی و لیبل و ترافیک سیمی همیشه یکی باشند. (تاریخچهٔ مستند نام‌های نمایشی آپستریم برای این ردیف‌ها: [docs/LIMITS.md](./docs/LIMITS.md).)
 
-| نام رسمی (کاتالوگ Freebuff) | شناسه آپستریم (legacy) | نام‌های مستعار | دسترسی |
-|---|---|---|---|
-| GLM 5.3 Flash | `z-ai/glm-5.3-flash` | `glm-5.3-flash`، `glm` | **نامحدود** با دسترسی کامل — پیش‌فرض |
-| DeepSeek V4.1 Flash | `deepseek/deepseek-v4-flash` | `deepseek-v4.1-flash`، `deepseek` | **نامحدود** با دسترسی کامل |
-| MiMo 2.6 Flash | `mimo/mimo-v2.5` | `mimo-2.6-flash`، `mimo-v2.5`، `mimo` | **نامحدود** با دسترسی کامل |
-| Solar Mini 4 | `upstage/solar-mini4` | `solar-mini-4`، `solar` | **نامحدود**، ۵۲۴K کانتکست، فقط متن |
-| MiniMax M3 | `minimax/minimax-m3` | `minimax-m3`، `minimax` | بسته به ظرفیت |
-| GPT-6 Luna | `openai/gpt-6-luna` | `gpt-6-luna`، `luna` | آمریکا / پلن پولی |
-| Space Bunny Alpha | `stealth/space-bunny-alpha` | `space-bunny-alpha` | بتا، پرامپت‌ها را نگه می‌دارد |
-| Gemini 3.8 Flash | `google/gemini-3.8-flash` | `gemini-3.8-flash` | پلن پولی |
+| مدل (= آیدی سیمی) | نام‌های مستعار | دسترسی |
+|---|---|---|
+| `z-ai/glm-5.3-flash` (GLM 5.3 Flash) | `glm-5.3-flash`، `glm` | **نامحدود** با دسترسی کامل — پیش‌فرض |
+| `deepseek/deepseek-v4-flash` (DeepSeek V4 Flash) | `deepseek-v4-flash`، `deepseek` | **نامحدود** با دسترسی کامل |
+| `mimo/mimo-v2.5` (MiMo 2.5) | `mimo-v2.5`، `mimo` | **نامحدود** با دسترسی کامل |
+| `upstage/solar-mini4` (Solar Mini 4) | `solar-mini-4`، `solar` | **نامحدود**، ۵۲۴K کانتکست، فقط متن |
+| `minimax/minimax-m3` (MiniMax M3) | `minimax-m3`، `minimax` | بسته به ظرفیت |
+| `openai/gpt-6-luna` (GPT-6 Luna) | `gpt-6-luna`، `luna` | آمریکا / پلن پولی |
+| `stealth/space-bunny-alpha` (Space Bunny Alpha) | `space-bunny-alpha` | بتا، پرامپت‌ها را نگه می‌دارد |
+| `google/gemini-3.8-flash` (Gemini 3.8 Flash) | `gemini-3.8-flash` | پلن پولی |
 
 با `fb9r models` هر وقت این جدول را ببین. نام‌های مستعار بی‌نظم (بزرگ/کوچک حروف) هم پذیرفته می‌شوند. پارامتر `reasoning_effort` هم پشتیبانی می‌شود و روی نردبان GLM (`low|high|max`) مهار می‌شود.
 
@@ -188,7 +188,7 @@ npm test      # ۴۶ تست با آپستریم شبیه‌سازی‌شده —
 
 **راه‌های مشروع برای گرفتن سهم بیشتر:**
 
-1. از مدل‌های **نامترشده** استفاده کن (GLM 5.3 Flash، DeepSeek V4.1 Flash، MiMo 2.6 Flash، Solar Mini 4) — دقیقاً برای همین پیش‌فرض رایگان گذاشته شده‌اند.
+1. از مدل‌های **نامترشده** استفاده کن (GLM 5.3 Flash، DeepSeek V4 Flash، MiMo 2.5، Solar Mini 4) — دقیقاً برای همین پیش‌فرض رایگان گذاشته شده‌اند.
 2. سهمیه را بالا ببر: **معرفی دوستان (+۱/روز)، استریک، سطح حساب** — همه روی ۴/۱۴/۴۰ اضافه می‌شوند.
 3. پنجره‌ها را رعایت کن: `retryAfterMs`/`resetAt` عیناً نمایش داده می‌شوند؛ پریمیوم DeepSeek روزهای کاری ساعت ۱۰ UTC برمی‌گردد.
 4. اگر لاین پریمیوم لازم داری: **اشتراک** (Starter/Plus/Pro) یا شارژ Freebucks — این همان چیزی است که با پول فروخته می‌شود.

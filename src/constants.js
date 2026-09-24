@@ -9,7 +9,7 @@
 
 // Package version — kept in sync with package.json by hand (single source of
 // truth for /health and the index route, no JSON import needed on Node 18).
-export const VERSION = '1.1.1';
+export const VERSION = '1.1.2';
 
 // Fixed timestamp for /v1/models entries (OpenAI clients expect a `created`).
 export const MODELS_CREATED = 1756684800; // 2025-09-01T00:00:00Z
@@ -39,16 +39,13 @@ export const SESSION_POLL_INTERVAL_MS = 30_000;
 // Model ids and the free-mode root agent each model must run under
 // (FREEBUFF_*_AGENT_ID_BY_MODEL in the vendor tree). cost_mode is 'free'.
 //
-// NAMING NOTE (matches the official Freebuff catalog exactly):
-// The upstream WIRE IDS are legacy/undated and do NOT track the served
-// generation — Freebuff kept the ids so installed clients, saved picks and
-// allowlists would not strand:
-//   `deepseek/deepseek-v4-flash` serves **DeepSeek V4.1 Flash** (since
-//   2026-09-10; upstream displayName 'DeepSeek V4.1 Flash').
-//   `mimo/mimo-v2.5` serves **MiMo 2.6 Flash** (since 2026-09-21; upstream
-//   comment: "the v2.5 in the id is history, not the model").
-// `label` below IS the official displayName; aliases accept both the dated
-// and undated spellings so every client keeps working.
+// NAMING RULE: `label` always mirrors the wire id's own naming — the id you
+// configure in 9router is exactly the id that goes over the wire. Two ids
+// are upstream legacy slugs that Freebuff deliberately kept undated across
+// model updates (so installed clients, saved picks and allowlists survive);
+// we label those rows by the id itself, not by whichever marketing name the
+// upstream picker currently shows for them (see docs/LIMITS.md for the
+// sourced upstream displayName history).
 export const MODELS = [
   {
     id: 'z-ai/glm-5.3-flash',
@@ -63,16 +60,16 @@ export const MODELS = [
   {
     id: 'deepseek/deepseek-v4-flash',
     agent: 'base3-free-deepseek-flash',
-    label: 'DeepSeek V4.1 Flash',
-    aliases: ['deepseek-v4.1-flash', 'deepseek-v4-flash', 'deepseek'],
+    label: 'DeepSeek V4 Flash',
+    aliases: ['deepseek-v4-flash', 'deepseek-flash', 'deepseek'],
     unmetered: true,
     note: 'Fast coding and tool use, unmetered at full access',
   },
   {
     id: 'mimo/mimo-v2.5',
     agent: 'base3-free-mimo',
-    label: 'MiMo 2.6 Flash',
-    aliases: ['mimo-2.6-flash', 'mimo-2.5', 'mimo-v2.5', 'mimo'],
+    label: 'MiMo 2.5',
+    aliases: ['mimo-2.5', 'mimo-v2.5', 'mimo'],
     unmetered: true,
     note: 'Balanced, image support — also the upstream fallback model',
   },
@@ -127,8 +124,8 @@ export function resolveModel(name) {
   if (name == null || name === '') return DEFAULT_MODEL;
   if (typeof name !== 'string') return null;
   // Normalize: trim, lowercase, collapse whitespace runs to hyphens — so a
-  // pasted official display name ("DeepSeek V4.1 Flash", "MiMo 2.6 Flash")
-  // resolves exactly like its hyphenated alias ("deepseek-v4.1-flash").
+  // pasted label ("DeepSeek V4 Flash", "MiMo 2.5") resolves exactly like its
+  // hyphenated alias ("deepseek-v4-flash", "mimo-2.5").
   const n = name.trim().toLowerCase().replace(/\s+/g, '-');
   if (!n) return DEFAULT_MODEL;
   for (const m of MODELS) {
