@@ -1,4 +1,4 @@
-# Freebuff free tier — the actual limits (v1.1.0)
+# Freebuff free tier — the actual limits (v1.1.1)
 
 Every fact below is taken from Freebuff's own public monorepo
 (`CodebuffAI/freebuff`, `common/` + `cli/`), not guessed. Where a number is
@@ -29,8 +29,12 @@ provider honors it: one account, one seat, released on `Ctrl+C` /
 There are two kinds of models:
 
 **Unmetered at full access** (no premium pool draw):
-`z-ai/glm-5.3-flash`, `deepseek/deepseek-v4-flash`, `mimo/mimo-v2.5`,
-`upstage/solar-mini4`.
+`z-ai/glm-5.3-flash` (GLM 5.3 Flash),
+`deepseek/deepseek-v4-flash` (**DeepSeek V4.1 Flash** — the undated legacy
+id has served V4.1 since 2026-09-10),
+`mimo/mimo-v2.5` (**MiMo 2.6 Flash** — upstream: "the v2.5 in the id is
+history, not the model", served since 2026-09-21),
+`upstage/solar-mini4` (Solar Mini 4).
 
 **Premium pool** (metered per session start). The marketed FREE allowance
 (`FREEBUFF_FREE_TIER_ALLOWANCE`, 2026-08-31):
@@ -164,9 +168,9 @@ client.
 
 **Legitimate ways to get more out of the free tier:**
 
-1. Prefer the **unmetered** models (GLM 5.3 Flash, DeepSeek V4 Flash, MiMo,
-   Solar Mini 4) — they are unmetered precisely so free users have a real
-   default.
+1. Prefer the **unmetered** models (GLM 5.3 Flash, DeepSeek V4.1 Flash,
+   MiMo 2.6 Flash, Solar Mini 4) — they are unmetered precisely so free
+   users have a real default.
 2. Earn pool bonuses: **referrals (+1/day), streaks, account level** — all
    additive on top of 4/14/40.
 3. Wait out windows: `retryAfterMs`/`resetAt` are always surfaced verbatim

@@ -9,7 +9,7 @@
 
 // Package version — kept in sync with package.json by hand (single source of
 // truth for /health and the index route, no JSON import needed on Node 18).
-export const VERSION = '1.1.0';
+export const VERSION = '1.1.1';
 
 // Fixed timestamp for /v1/models entries (OpenAI clients expect a `created`).
 export const MODELS_CREATED = 1756684800; // 2025-09-01T00:00:00Z
@@ -38,6 +38,17 @@ export const SESSION_POLL_INTERVAL_MS = 30_000;
 
 // Model ids and the free-mode root agent each model must run under
 // (FREEBUFF_*_AGENT_ID_BY_MODEL in the vendor tree). cost_mode is 'free'.
+//
+// NAMING NOTE (matches the official Freebuff catalog exactly):
+// The upstream WIRE IDS are legacy/undated and do NOT track the served
+// generation — Freebuff kept the ids so installed clients, saved picks and
+// allowlists would not strand:
+//   `deepseek/deepseek-v4-flash` serves **DeepSeek V4.1 Flash** (since
+//   2026-09-10; upstream displayName 'DeepSeek V4.1 Flash').
+//   `mimo/mimo-v2.5` serves **MiMo 2.6 Flash** (since 2026-09-21; upstream
+//   comment: "the v2.5 in the id is history, not the model").
+// `label` below IS the official displayName; aliases accept both the dated
+// and undated spellings so every client keeps working.
 export const MODELS = [
   {
     id: 'z-ai/glm-5.3-flash',
@@ -61,7 +72,7 @@ export const MODELS = [
     id: 'mimo/mimo-v2.5',
     agent: 'base3-free-mimo',
     label: 'MiMo 2.6 Flash',
-    aliases: ['mimo-2.6-flash', 'mimo-2.5', 'mimo'],
+    aliases: ['mimo-2.6-flash', 'mimo-2.5', 'mimo-v2.5', 'mimo'],
     unmetered: true,
     note: 'Balanced, image support — also the upstream fallback model',
   },
@@ -115,7 +126,10 @@ export function resolveModel(name) {
   // run a different model than the caller asked for.
   if (name == null || name === '') return DEFAULT_MODEL;
   if (typeof name !== 'string') return null;
-  const n = name.trim().toLowerCase();
+  // Normalize: trim, lowercase, collapse whitespace runs to hyphens — so a
+  // pasted official display name ("DeepSeek V4.1 Flash", "MiMo 2.6 Flash")
+  // resolves exactly like its hyphenated alias ("deepseek-v4.1-flash").
+  const n = name.trim().toLowerCase().replace(/\s+/g, '-');
   if (!n) return DEFAULT_MODEL;
   for (const m of MODELS) {
     if (m.id.toLowerCase() === n || m.aliases.includes(n)) return m.id;
