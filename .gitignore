@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.env
+credentials.json
+data/
+.DS_Store
+test/tmp/

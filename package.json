@@ -1,0 +1,21 @@
+{
+  "name": "freebuff-9router-provider",
+  "version": "1.0.0",
+  "description": "Freebuff (GLM 5.3 Flash, DeepSeek V4.1 Flash, ...) as a local OpenAI-compatible provider for 9router — single account, official login, no tricks",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "fb9r": "bin/fb9r.js" },
+  "engines": { "node": ">=18.17.0" },
+  "scripts": {
+    "start": "node bin/fb9r.js serve",
+    "login": "node bin/fb9r.js login",
+    "status": "node bin/fb9r.js status",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "freebuff", "9router", "glm", "deepseek", "openai-compatible",
+    "claude-code", "opencode", "provider", "proxy"
+  ],
+  "repository": { "type": "git", "url": "git+https://github.com/Godde3s/freebuff-9router-provider.git" },
+  "author": "Godde3s"
+}
