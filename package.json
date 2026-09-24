@@ -1,7 +1,7 @@
 {
   "name": "freebuff-9router-provider",
-  "version": "1.1.1",
-  "description": "Freebuff (GLM 5.3 Flash, DeepSeek V4.1 Flash, ...) as a local OpenAI-compatible provider for 9router — single account, official login, no tricks",
+  "version": "1.1.2",
+  "description": "Freebuff (GLM 5.3 Flash, DeepSeek V4 Flash, MiMo 2.5, ...) as a local OpenAI-compatible provider for 9router — single account, official login, no tricks",
   "license": "MIT",
   "type": "module",
   "bin": { "fb9r": "bin/fb9r.js" },

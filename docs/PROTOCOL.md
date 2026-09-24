@@ -144,21 +144,22 @@ Requests must satisfy, or they are rejected with a typed 4xx:
 
 ## 7. Agent ↔ model map (free roots used by this provider)
 
-| Model id (legacy wire id) | Official name (Freebuff catalog) | Root agent |
-|---|---|---|
-| `z-ai/glm-5.3-flash` | GLM 5.3 Flash | `base3-free-glm-5-3-flash` |
-| `deepseek/deepseek-v4-flash` | DeepSeek V4.1 Flash | `base3-free-deepseek-flash` |
-| `mimo/mimo-v2.5` | MiMo 2.6 Flash | `base3-free-mimo` |
-| `upstage/solar-mini4` | Solar Mini 4 | `base3-free-solar-mini4` |
-| `minimax/minimax-m3` | MiniMax M3 | `base3-free-minimax-m3` |
-| `openai/gpt-6-luna` | GPT-6 Luna | `base3-free-luna-6` |
-| `stealth/space-bunny-alpha` | Space Bunny Alpha | `base3-free-space-bunny-alpha` |
-| `google/gemini-3.8-flash` | Gemini 3.8 Flash | `base3-free-gemini-3-8-flash` |
+| Model id (= wire id, also this provider's label) | Root agent |
+|---|---|
+| `z-ai/glm-5.3-flash` (GLM 5.3 Flash) | `base3-free-glm-5-3-flash` |
+| `deepseek/deepseek-v4-flash` (DeepSeek V4 Flash) | `base3-free-deepseek-flash` |
+| `mimo/mimo-v2.5` (MiMo 2.5) | `base3-free-mimo` |
+| `upstage/solar-mini4` (Solar Mini 4) | `base3-free-solar-mini4` |
+| `minimax/minimax-m3` (MiniMax M3) | `base3-free-minimax-m3` |
+| `openai/gpt-6-luna` (GPT-6 Luna) | `base3-free-luna-6` |
+| `stealth/space-bunny-alpha` (Space Bunny Alpha) | `base3-free-space-bunny-alpha` |
+| `google/gemini-3.8-flash` (Gemini 3.8 Flash) | `base3-free-gemini-3-8-flash` |
 
-> The ids are upstream's undated legacy slugs and do NOT track the served
-> generation: `deepseek-v4-flash` serves DeepSeek V4.1 Flash (since
-> 2026-09-10) and `mimo-v2.5` serves MiMo 2.6 Flash (since 2026-09-21).
-> Upstream kept the ids so saved picks and allowlists would not strand.
+> The DeepSeek and MiMo ids are upstream's undated legacy slugs, kept stable
+> by Freebuff across model updates so saved picks and allowlists survive.
+> This provider labels each row exactly by its wire id, so the model name
+> you configure is precisely what the wire sends. The sourced history of
+> upstream's picker displayNames for these rows lives in LIMITS.md.
 
 ## 8. Logout
 

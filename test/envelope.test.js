@@ -73,7 +73,7 @@ test('envelope: no wallet/limit or evasion fields exist anywhere', () => {
 test('model resolution: ids and aliases, case-insensitive', () => {
   assert.equal(resolveModel('GLM-5.3-Flash'), 'z-ai/glm-5.3-flash');
   assert.equal(resolveModel('deepseek'), 'deepseek/deepseek-v4-flash');
-  assert.equal(resolveModel('deepseek-v4.1-flash'), 'deepseek/deepseek-v4-flash');
+  assert.equal(resolveModel('deepseek-v4-flash'), 'deepseek/deepseek-v4-flash');
   assert.equal(resolveModel('mimo'), 'mimo/mimo-v2.5');
   assert.equal(resolveModel('z-ai/glm-5.3-flash'), 'z-ai/glm-5.3-flash');
   assert.equal(resolveModel('nope-nope'), null);

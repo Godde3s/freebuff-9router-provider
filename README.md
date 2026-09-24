@@ -1,6 +1,6 @@
 # freebuff-9router-provider
 
-**Use Freebuff's free models (GLM 5.3 Flash, DeepSeek V4.1 Flash, MiMo 2.6 Flash, …) as a provider inside [9router](https://github.com/decolua/9router)** — or any tool that speaks the OpenAI API (Claude Code via 9router, OpenCode, Hermes Agent, curl, …).
+**Use Freebuff's free models (GLM 5.3 Flash, DeepSeek V4 Flash, MiMo 2.5, …) as a provider inside [9router](https://github.com/decolua/9router)** — or any tool that speaks the OpenAI API (Claude Code via 9router, OpenCode, Hermes Agent, curl, …).
 
 This is **not another router**. It is a tiny local sidecar (zero dependencies, Node ≥ 18) that:
 
@@ -46,7 +46,7 @@ freebuff-9router-provider  (this tool, localhost:8787)
             │  official login + free-seat session + CLI wire format
             ▼
      freebuff.com / codebuff.com
-   GLM 5.3 Flash · DeepSeek V4.1 Flash · MiMo 2.6 Flash · …
+   GLM 5.3 Flash · DeepSeek V4 Flash · MiMo 2.5 · …
 ```
 
 The sidecar performs, per chat request, the same sequence the official Freebuff CLI performs:
@@ -127,25 +127,25 @@ Short version — in the 9router dashboard:
 
 ## Models
 
-Naming first, because it trips everyone: **the upstream ids are legacy and
-do not track the served generation.** Freebuff kept the old ids so saved
-picks and allowlists would not break — so `deepseek/deepseek-v4-flash`
-really serves **DeepSeek V4.1 Flash** (since 2026-09-10) and
-`mimo/mimo-v2.5` really serves **MiMo 2.6 Flash** (since 2026-09-21 —
-upstream's own words: "the v2.5 in the id is history, not the model"). The
-"Official name" column below is Freebuff's own `displayName` from its
-public catalog, and that is what this provider reports.
+One naming rule, so nothing surprises you: **the "Model" column below is
+exactly the id this provider sends on the wire** — what you configure in
+9router is what Freebuff receives. Two of the upstream ids are legacy slugs
+that Freebuff deliberately kept stable across model updates
+(`deepseek/deepseek-v4-flash`, `mimo/mimo-v2.5`); this provider labels those
+rows by their wire id, so id, label and wire traffic always agree. (For the
+sourced history of the upstream displayNames for these rows, see
+[docs/LIMITS.md](./docs/LIMITS.md).)
 
-| Official name (Freebuff catalog) | Upstream id (legacy) | Aliases | Access |
-|---|---|---|---|
-| GLM 5.3 Flash | `z-ai/glm-5.3-flash` | `glm-5.3-flash`, `glm` | **unmetered** at full access — default |
-| DeepSeek V4.1 Flash | `deepseek/deepseek-v4-flash` | `deepseek-v4.1-flash`, `deepseek` | **unmetered** at full access |
-| MiMo 2.6 Flash | `mimo/mimo-v2.5` | `mimo-2.6-flash`, `mimo-v2.5`, `mimo` | **unmetered** at full access |
-| Solar Mini 4 | `upstage/solar-mini4` | `solar-mini-4`, `solar` | **unmetered**, 524K ctx, text only |
-| MiniMax M3 | `minimax/minimax-m3` | `minimax-m3`, `minimax` | capacity-dependent |
-| GPT-6 Luna | `openai/gpt-6-luna` | `gpt-6-luna`, `luna` | US / paid plans |
-| Space Bunny Alpha | `stealth/space-bunny-alpha` | `space-bunny-alpha` | beta, retains prompts |
-| Gemini 3.8 Flash | `google/gemini-3.8-flash` | `gemini-3.8-flash` | paid plans |
+| Model (= wire id) | Aliases | Access |
+|---|---|---|
+| `z-ai/glm-5.3-flash` (GLM 5.3 Flash) | `glm-5.3-flash`, `glm` | **unmetered** at full access — default |
+| `deepseek/deepseek-v4-flash` (DeepSeek V4 Flash) | `deepseek-v4-flash`, `deepseek` | **unmetered** at full access |
+| `mimo/mimo-v2.5` (MiMo 2.5) | `mimo-v2.5`, `mimo` | **unmetered** at full access |
+| `upstage/solar-mini4` (Solar Mini 4) | `solar-mini-4`, `solar` | **unmetered**, 524K ctx, text only |
+| `minimax/minimax-m3` (MiniMax M3) | `minimax-m3`, `minimax` | capacity-dependent |
+| `openai/gpt-6-luna` (GPT-6 Luna) | `gpt-6-luna`, `luna` | US / paid plans |
+| `stealth/space-bunny-alpha` (Space Bunny Alpha) | `space-bunny-alpha` | beta, retains prompts |
+| `google/gemini-3.8-flash` (Gemini 3.8 Flash) | `gemini-3.8-flash` | paid plans |
 
 `fb9r models` prints this table anytime. Aliases are case-insensitive and resolved server-side by the provider.
 
@@ -211,7 +211,7 @@ See [docs/POLICY.md](./docs/POLICY.md) for the reasoning and the upstream contex
 
 **Full breakdown with real numbers:** [docs/LIMITS.md](./docs/LIMITS.md) —
 seat rules, quota pools (4/day · 14/week · 40/month for premium models;
-GLM 5.3 Flash / DeepSeek V4.1 Flash / MiMo 2.6 Flash / Solar Mini 4
+GLM 5.3 Flash / DeepSeek V4 Flash / MiMo 2.5 / Solar Mini 4
 unmetered), IP and
 country gates, trust levels, availability windows, and an answer to "can a
 new proxy lift these limits?" (short version: it solves plumbing, not
