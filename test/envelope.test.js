@@ -80,6 +80,68 @@ test('model resolution: ids and aliases, case-insensitive', () => {
   assert.equal(resolveModel(undefined), 'z-ai/glm-5.3-flash');
 });
 
+test('model resolution: non-string models are REJECTED, not silently defaulted', () => {
+  assert.equal(resolveModel(123), null);
+  assert.equal(resolveModel({ id: 'glm' }), null);
+  assert.equal(resolveModel(true), null);
+  // null and empty string still mean "caller has no opinion"
+  assert.equal(resolveModel(null), 'z-ai/glm-5.3-flash');
+  assert.equal(resolveModel(''), 'z-ai/glm-5.3-flash');
+  assert.equal(resolveModel('   '), 'z-ai/glm-5.3-flash');
+});
+
+test('clientId shape: exactly 13 base36 chars, no punctuation — always', () => {
+  for (let i = 0; i < 500; i++) {
+    const payload = buildEnvelope({ model: 'z-ai/glm-5.3-flash', messages: [{ role: 'user', content: 'x' }] });
+    assert.match(payload.codebuff_metadata.client_id, /^[a-z0-9]{13}$/);
+  }
+});
+
+test('prepend is PURE: caller objects are never mutated', () => {
+  const original = { role: 'system', content: 'You are Claude Code.' };
+  const msgs = [{ ...original }, { role: 'user', content: 'hi' }];
+  const out = prependCanonicalOpening(msgs);
+  assert.equal(out[0].content, CANONICAL_OPENING + '\n\nYou are Claude Code.');
+  // the CALLER's object is untouched
+  assert.equal(original.content, 'You are Claude Code.');
+  // and the caller's array too
+  assert.equal(msgs[0].content, 'You are Claude Code.');
+});
+
+test('prepend is IDEMPOTENT across repeated calls on the same output', () => {
+  const msgs = [{ role: 'system', content: 'base prompt' }, { role: 'user', content: 'x' }];
+  const once1 = prependCanonicalOpening(msgs);
+  const twice = prependCanonicalOpening(once1);
+  const thrice = prependCanonicalOpening(twice);
+  assert.equal(JSON.stringify(twice), JSON.stringify(thrice));
+  assert.equal(thrice[0].content.split(CANONICAL_OPENING).length - 1, 1, 'exactly one opening, no duplicates');
+});
+
+test('prepend with ARRAY content that already opens with the canonical text does NOT duplicate', () => {
+  const msgs = [{
+    role: 'system',
+    content: [
+      { type: 'text', text: CANONICAL_OPENING + '\n\nmy rules' },
+      { type: 'text', text: 'more rules' },
+    ],
+  }];
+  const out = prependCanonicalOpening(msgs);
+  assert.equal(out[0].content.length, 2, 'no extra part inserted');
+  assert.equal(out[0].content[0].text, CANONICAL_OPENING + '\n\nmy rules');
+});
+
+test('prepend with array content whose first text part is empty still gets the opening', () => {
+  const msgs = [{ role: 'system', content: [{ type: 'text', text: '' }] }];
+  const out = prependCanonicalOpening(msgs);
+  assert.equal(out[0].content.length, 2);
+  assert.equal(out[0].content[0].text, CANONICAL_OPENING);
+});
+
+test('prepend with null system content replaces it with the opening', () => {
+  const out = prependCanonicalOpening([{ role: 'system', content: null }, { role: 'user', content: 'x' }]);
+  assert.equal(out[0].content, CANONICAL_OPENING);
+});
+
 test('effort clamping follows the GLM ladder only', () => {
   assert.equal(clampEffort('z-ai/glm-5.3-flash', 'medium'), 'low');
   assert.equal(clampEffort('z-ai/glm-5.3-flash', 'bogus'), 'max');

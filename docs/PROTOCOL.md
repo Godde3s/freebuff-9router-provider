@@ -56,6 +56,28 @@ typed states `model_locked`, `model_unavailable`, `consent_required`,
 `rate_limited`, `spend_limited`, `ip_capped`, `country_blocked`, `banned` —
 each surfaced verbatim with its `retryAfterMs` when present.
 
+Upstream can deliver these refusals two ways: as a real 4xx status, or as
+HTTP 200 with a non-`active` `status` body. The provider maps both to the
+HTTP status they semantically are (so 9router's backoff logic works), while
+keeping the original code and `retryAfterMs` in the error body:
+
+| Upstream state | HTTP to the local caller |
+|---|---|
+| `rate_limited`, `spend_limited`, `ip_capped` | **429** (+ `retryAfterMs`) |
+| `country_blocked`, `banned`, `consent_required`, `free_mode_unavailable` | **403** |
+| `model_locked`, `superseded`, `session_superseded` | **409** |
+| `model_unavailable` | **503** |
+| anything else non-`active` | 502 |
+
+A chat call rejected with `superseded` (the seat was taken by another
+client on the same account — upstream also signals it with 409) resets the
+local seat so the next request re-admits automatically.
+
+A stalled upstream never hangs the caller: non-stream JSON calls have a
+countdown covering headers **and** body (typed `504 upstream_timeout`), and
+chat has a time-to-first-byte deadline that stops once the SSE stream is
+flowing.
+
 ## 4. Agent runs
 
 ```
@@ -98,7 +120,12 @@ POST /api/v1/chat/completions
 ```
 
 Upstream always streams; the provider aggregates server-side when the local
-caller asked for `stream: false`.
+caller asked for `stream: false`. If the upstream stream dies mid-flight,
+the local stream closes with one OpenAI-shaped SSE error frame followed by
+`data: [DONE]` — streaming clients always learn why the stream ended.
+
+The full quota/limit taxonomy behind these states is documented in
+[LIMITS.md](./LIMITS.md).
 
 ## 6. Free-mode gates (server-side)
 

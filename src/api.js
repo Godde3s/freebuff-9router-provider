@@ -44,8 +44,21 @@ export async function apiFetch(path, {
   const origin = (base || (login ? loginBase() : apiBase())).replace(/\/+$/, '');
   const url = origin + (path.startsWith('/') ? path : '/' + path);
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(new Error('timeout')), timeoutMs);
-  if (signal) signal.addEventListener('abort', () => ctrl.abort(signal.reason), { once: true });
+  // The timer covers the ENTIRE exchange (headers + body read) so a stalled
+  // upstream can never hang a request forever. It surfaces as a typed 504.
+  const timer = setTimeout(
+    () => ctrl.abort(new UpstreamError({
+      status: 504,
+      code: 'upstream_timeout',
+      message: `upstream did not respond within ${timeoutMs}ms`,
+    })),
+    timeoutMs,
+  );
+  const onAbort = () => ctrl.abort(signal.reason);
+  if (signal) {
+    if (signal.aborted) ctrl.abort(signal.reason);
+    else signal.addEventListener('abort', onAbort, { once: true });
+  }
   let res;
   try {
     res = await fetch(url, {
@@ -59,10 +72,16 @@ export async function apiFetch(path, {
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
+    return await readJsonResponse(res);
   } finally {
     clearTimeout(timer);
+    // Detach from the caller's signal: repeated calls over one long-lived
+    // signal (login polling) must not accumulate listeners.
+    if (signal) signal.removeEventListener('abort', onAbort);
   }
+}
 
+async function readJsonResponse(res) {
   const text = await res.text();
   let json = null;
   try {
@@ -98,16 +117,24 @@ export const endpoints = {
 
 export function sleep(ms, signal) {
   return new Promise((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
+    const t = setTimeout(done, ms);
+    function done() {
+      cleanup();
+      resolve();
+    }
+    function onAbort() {
+      cleanup();
+      reject(signal.reason || new Error('aborted'));
+    }
+    function cleanup() {
+      clearTimeout(t);
+      // Detach after settle: polling loops share one signal and must not
+      // accumulate a listener per iteration.
+      if (signal) signal.removeEventListener('abort', onAbort);
+    }
     if (signal) {
-      signal.addEventListener(
-        'abort',
-        () => {
-          clearTimeout(t);
-          reject(signal.reason || new Error('aborted'));
-        },
-        { once: true },
-      );
+      if (signal.aborted) return onAbort();
+      signal.addEventListener('abort', onAbort, { once: true });
     }
   });
 }

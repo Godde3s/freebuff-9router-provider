@@ -148,10 +148,18 @@ Once the sidecar is running:
 
 | Route | Description |
 |---|---|
-| `GET /v1/models` | OpenAI model list (includes aliases) |
+| `GET /` | name, version, endpoint list |
+| `GET /v1/models` | OpenAI model list (includes aliases + `created`) |
 | `POST /v1/chat/completions` | OpenAI chat completions, `stream: true/false` |
-| `GET /health` | login state, session state, account |
-| `DELETE /v1/session` | release the free seat manually |
+| `GET /health` | login state, session state, account, version |
+| `DELETE /v1/session` | release the free seat manually (requires `--api-key` when one is set) |
+
+Errors from upstream are surfaced **verbatim** with their real HTTP status:
+`429 rate_limited` / `spend_limited` / `ip_capped` carry `retryAfterMs`;
+`country_blocked` maps to 403; `model_locked` / `superseded` to 409;
+`model_unavailable` to 503; a stalled upstream becomes `504 upstream_timeout`.
+A mid-stream upstream failure emits one OpenAI-shaped SSE error frame before
+`[DONE]`, so streaming clients always learn why a stream died.
 
 Example:
 
@@ -164,10 +172,18 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
 ## Tests
 
 ```bash
-npm test        # 24 tests, mock upstream — no account needed
+npm test        # 44 tests, mock upstream — no account needed
 ```
 
-Covers: the canonical-opening envelope, login code/poll flow (incl. pending-401), credential file mode (`0600`) and CLI import, seat admission/refresh/release, model switching, error taxonomy mapping (429 → `rate_limited` + `retryAfterMs`), SSE passthrough, non-stream aggregation, and the local API-key gate.
+Covers: the canonical-opening envelope (pure + idempotent, no duplicate
+insertion), login code/poll flow (incl. pending-401), credential file mode
+(`0600`) and CLI import, seat admission/refresh/release, model switching,
+**seat-transition mutex under concurrent different-model chats**,
+error-taxonomy mapping (429/403/409/503 + in-200 admission refusals),
+**upstream 504 timeouts (headers and body)**, **no abort-listener
+accumulation**, SSE passthrough, **mid-stream error frames**, non-stream
+aggregation, **413 body cap**, the local API-key gate on chat **and**
+session release, and `/v1/models` OpenAI shape.
 
 ## Honest client — what this tool does NOT do
 
@@ -184,19 +200,32 @@ See [docs/POLICY.md](./docs/POLICY.md) for the reasoning and the upstream contex
 
 ## Limits & troubleshooting
 
+**Full breakdown with real numbers:** [docs/LIMITS.md](./docs/LIMITS.md) —
+seat rules, quota pools (4/day · 14/week · 40/month for premium models;
+GLM 5.3 Flash / DeepSeek V4 Flash / MiMo / Solar Mini 4 unmetered), IP and
+country gates, trust levels, availability windows, and an answer to "can a
+new proxy lift these limits?" (short version: it solves plumbing, not
+server-enforced caps).
+
 | Symptom | Meaning | What to do |
 |---|---|---|
-| `429 rate_limited` | real upstream rate limit for your account | wait for `retryAfterMs`, it resets on its own |
-| `429 spend_limited` | daily cap reached | resets at midnight Pacific (per upstream) |
-| `403 country_blocked` / `free_mode_unavailable` | region/VPN gate | free mode from supported regions; the provider does not fake location |
-| `session_superseded` (409) | another client took the account's single seat | close the other Freebuff CLI/Desktop, retry |
+| `429 rate_limited` | premium-pool quota for your account is spent | wait for `retryAfterMs` (`resetAt` shows when), or switch to an unmetered model |
+| `429 spend_limited` | Freebucks meter refuses a metered model | use an unmetered model, wait for reset, or top up/subscribe upstream |
+| `429 ip_capped` | too many distinct free sessions on your egress IP | ends when one of them ends — nothing to configure |
+| `403 country_blocked` | region/VPN gate | free mode from supported regions; the provider does not fake location |
+| `409 model_locked` / `superseded` | another client/seat conflict | close the other Freebuff CLI/Desktop, retry — the seat auto-resets |
+| `503 model_unavailable` | model closed (deployment hours / DeepSeek expensive window / capacity) | try another model; windows are documented in LIMITS |
+| `504 upstream_timeout` | upstream never answered | transient — retry; the provider no longer hangs forever |
 | foreign system-prompt rejection | your tool's system prompt is flagged upstream | this is Freebuff's gate — use tools whose prompts pass, or the official CLI; this provider will not disguise prompts |
 | `401` from provider | not logged in | `fb9r login` or `fb9r import` |
 
-Session seats expire on their own after ~1 hour upstream; the sidecar keepalives while running and releases the seat on `Ctrl+C` / `SIGTERM` / `DELETE /v1/session`.
+Session seats expire on their own after ~1 hour upstream; the sidecar
+keepalives while running and releases the seat on `Ctrl+C` / `SIGTERM` /
+`DELETE /v1/session`.
 
 ## Docs
 
+- [docs/LIMITS.md](./docs/LIMITS.md) — **the free tier's real limits, with numbers, and the proxy question answered**
 - [docs/CONNECT-9ROUTER.md](./docs/CONNECT-9ROUTER.md) — exact 9router setup, both UI and manual JSON
 - [docs/PROTOCOL.md](./docs/PROTOCOL.md) — the full upstream wire protocol this implements
 - [docs/POLICY.md](./docs/POLICY.md) — honest-client rules, upstream gates, and why evasion was left out

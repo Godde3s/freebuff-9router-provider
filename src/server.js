@@ -9,34 +9,74 @@
 
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { MODELS, DEFAULT_MODEL, resolveModel, modelEntry } from './constants.js';
+import { MODELS, DEFAULT_MODEL, VERSION, MODELS_CREATED, resolveModel, modelEntry } from './constants.js';
 import { loadCredentials } from './credentials.js';
 import { fetchMe, FreebuffSession } from './session.js';
 import { ChatClient, buildEnvelope, iterateSSE, aggregateStream } from './chat.js';
 import { UpstreamError } from './api.js';
 
+// Admission/chat states that arrive with an HTTP 200 (or as a code on a
+// non-4xx) are mapped to the HTTP status they semantically are, so 9router
+// and OpenAI-speaking clients handle them with their normal backoff logic.
+const CODE_TO_HTTP = {
+  rate_limited: 429,
+  spend_limited: 429,
+  ip_capped: 429,
+  country_blocked: 403,
+  banned: 403,
+  consent_required: 403,
+  free_mode_unavailable: 403,
+  model_locked: 409,
+  superseded: 409,
+  session_superseded: 409,
+  model_unavailable: 503,
+};
+
 function json(res, status, obj) {
+  if (res.destroyed) return;
   const body = JSON.stringify(obj);
-  res.writeHead(status, {
-    'Content-Type': 'application/json',
-    'Content-Length': Buffer.byteLength(body),
-    'x-fb9r-provider': 'freebuff-9router-provider',
-  });
-  res.end(body);
+  try {
+    res.writeHead(status, {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body),
+      'x-fb9r-provider': 'freebuff-9router-provider',
+    });
+    res.end(body);
+  } catch {
+    /* client vanished mid-write; nothing to do */
+  }
 }
 
 function sseHeaders(res) {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-    'x-fb9r-provider': 'freebuff-9router-provider',
-  });
+  if (res.destroyed) return false;
+  try {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'x-fb9r-provider': 'freebuff-9router-provider',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sseWrite(res, text) {
+  if (res.destroyed) return;
+  try {
+    res.write(text);
+  } catch {
+    /* client vanished mid-stream */
+  }
 }
 
 function errorBody(err) {
   const isUp = err instanceof UpstreamError;
-  const status = isUp && err.status >= 400 && err.status <= 599 ? err.status : 502;
+  let status;
+  if (isUp && err.status >= 400 && err.status <= 599) status = err.status;
+  else if (isUp && err.code && CODE_TO_HTTP[err.code]) status = CODE_TO_HTTP[err.code];
+  else status = 502;
   const code = isUp ? err.code || null : null;
   const message = isUp
     ? err.message + (code ? ` [${code}]` : '')
@@ -44,11 +84,21 @@ function errorBody(err) {
   return { status, payload: { error: { message, type: 'upstream_error', code, ...(isUp && err.retryAfterMs ? { retryAfterMs: err.retryAfterMs } : {}) } } };
 }
 
+// Constant-time local api-key comparison (length-independent via digests).
+function keyMatches(presented, expected) {
+  if (!expected) return true;
+  if (!presented || typeof presented !== 'string') return false;
+  const a = crypto.createHash('sha256').update(presented).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 export function createServer({
   port = 8787,
   host = '127.0.0.1',
-  apiKey = null,       // optional local gate: require this key on chat calls
+  apiKey = null,       // optional local gate: require this key on chat + session release
   token = null,
+  maxBodyBytes = 32 * 1024 * 1024, // request body cap (413 beyond it)
   log = () => {},
 } = {}) {
   const session = new FreebuffSession({ token, onError: (e) => log('session', e.message) });
@@ -128,9 +178,11 @@ export function createServer({
       upstreamRes = await chat.chatCompletion(payload, { signal: ac.signal });
     } catch (err) {
       await chat.finishRun({ runId, status: 'failed', steps: [], errorMessage: err?.message });
-      if (err instanceof UpstreamError && (err.code === 'session_expired' || err.status === 410 || err.status === 428 || err.code === 'session_superseded')) {
-        session.active = null; // next call re-admits
-      }
+      // Seat-level rejections reset the local seat so the next call re-admits.
+      const seatGone = err instanceof UpstreamError
+        && (err.code === 'session_expired' || err.code === 'session_superseded' || err.code === 'superseded'
+          || err.status === 410 || err.status === 428 || err.status === 409);
+      if (seatGone) session.active = null;
       const mapped = errorBody(err);
       return json(res, mapped.status, mapped.payload);
     }
@@ -158,20 +210,22 @@ export function createServer({
     }
 
     // Streaming: pass the upstream SSE frames through untouched and close
-    // with [DONE] so standard OpenAI clients terminate cleanly.
-    sseHeaders(res);
+    // with [DONE] so standard OpenAI clients terminate cleanly. A mid-stream
+    // upstream failure emits one OpenAI-shaped error frame before [DONE] so
+    // the caller sees WHY the stream died instead of a silent truncation.
+    if (!sseHeaders(res)) return;
     let hadError = false;
     try {
       for await (const data of iterateSSE(upstreamRes)) {
-        res.write(`data: ${data}\n\n`);
+        sseWrite(res, `data: ${data}\n\n`);
       }
-      res.write('data: [DONE]\n\n');
     } catch (err) {
       hadError = true;
       log('stream', err?.message);
-      // Mid-stream errors can only be signalled by closing; clients already
-      // received the headers, so end the stream honestly.
+      const mapped = errorBody(err);
+      sseWrite(res, `data: ${JSON.stringify({ error: mapped.payload.error })}\n\n`);
     } finally {
+      sseWrite(res, 'data: [DONE]\n\n');
       res.end();
       await chat.finishRun({
         runId,
@@ -188,6 +242,9 @@ export function createServer({
   }
 
   const server = http.createServer(async (req, res) => {
+    // A client that vanishes mid-response must not crash the process with an
+    // unhandled 'error' event on the response stream.
+    res.on('error', () => {});
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const path = url.pathname.replace(/\/+$/, '') || '/';
 
@@ -196,11 +253,21 @@ export function createServer({
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type, x-api-key',
+        'Access-Control-Max-Age': '600',
       });
       return res.end();
     }
 
     try {
+      if (req.method === 'GET' && path === '/') {
+        return json(res, 200, {
+          name: 'freebuff-9router-provider',
+          version: VERSION,
+          endpoints: ['GET /v1/models', 'POST /v1/chat/completions', 'GET /health', 'DELETE /v1/session'],
+          hint: 'add http://127.0.0.1:' + (port || 8787) + '/v1 as an OpenAI-compatible provider in 9router',
+        });
+      }
+
       if (req.method === 'GET' && path === '/health') {
         const cred = await currentCredentials();
         return json(res, 200, {
@@ -210,7 +277,7 @@ export function createServer({
           account: cred?.id || chat.userId || null,
           session: session.status(),
           models: MODELS.length,
-          version: '1.0.0',
+          version: VERSION,
         });
       }
 
@@ -220,6 +287,7 @@ export function createServer({
           data: MODELS.map((m) => ({
             id: m.id,
             object: 'model',
+            created: MODELS_CREATED,
             owned_by: 'freebuff',
             aliases: m.aliases,
             unmetered: !!m.unmetered,
@@ -229,6 +297,16 @@ export function createServer({
       }
 
       if (req.method === 'DELETE' && (path === '/v1/session' || path === '/session')) {
+        // Releasing the seat is a mutating operation: when a local api key is
+        // configured, callers must present it here too, or any local process
+        // could keep knocking your seat out.
+        if (apiKey) {
+          const auth = req.headers.authorization || '';
+          const key = auth.replace(/^Bearer\s+/i, '') || req.headers['x-api-key'];
+          if (!keyMatches(key, apiKey)) {
+            return json(res, 401, { error: { message: 'invalid provider api key (FB9R_API_KEY)', type: 'auth' } });
+          }
+        }
         const ok = await session.release();
         return json(res, 200, { released: ok });
       }
@@ -237,12 +315,25 @@ export function createServer({
         if (apiKey) {
           const auth = req.headers.authorization || '';
           const key = auth.replace(/^Bearer\s+/i, '') || req.headers['x-api-key'];
-          if (key !== apiKey) {
+          if (!keyMatches(key, apiKey)) {
             return json(res, 401, { error: { message: 'invalid provider api key (FB9R_API_KEY)', type: 'auth' } });
           }
         }
         const chunks = [];
-        for await (const c of req) chunks.push(c);
+        let size = 0;
+        let tooBig = false;
+        for await (const c of req) {
+          size += c.length;
+          if (size > maxBodyBytes) {
+            tooBig = true;
+            chunks.length = 0; // keep draining the socket, discard content
+          } else if (!tooBig) {
+            chunks.push(c);
+          }
+        }
+        if (tooBig) {
+          return json(res, 413, { error: { message: `request body exceeds ${maxBodyBytes} bytes`, type: 'invalid_request_error' } });
+        }
         const raw = Buffer.concat(chunks).toString('utf8') || '{}';
         let body;
         try {
@@ -258,7 +349,7 @@ export function createServer({
       log('http', err?.stack || err?.message);
       const mapped = errorBody(err);
       if (!res.headersSent) return json(res, mapped.status, mapped.payload);
-      res.end();
+      if (!res.writableEnded) res.end();
     }
   });
 
