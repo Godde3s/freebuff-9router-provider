@@ -8,39 +8,52 @@
 //   * cost_mode is always 'free' and wallet spend limit is always 0.
 
 import crypto from 'node:crypto';
-import { CANONICAL_OPENING, apiBase, clampEffort, modelEntry } from './constants.js';
+import { CANONICAL_OPENING, CHAT_USER_AGENT, apiBase, clampEffort, modelEntry } from './constants.js';
 import { apiFetch, endpoints, UpstreamError } from './api.js';
 
+const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
 function clientId() {
-  // CLI shape: Math.random().toString(36).substring(2, 15) — 13 base36 chars.
-  return Math.random().toString(36).substring(2, 15);
+  // CLI shape: 13 lowercase base36 chars. Generated positionally (not via
+  // Math.random().toString(36)) so the result can never contain '.', '-'
+  // or exponent notation from tiny random values, which would break the
+  // client-id shape upstream expects.
+  let s = '';
+  for (let i = 0; i < 13; i++) s += BASE36[crypto.randomInt(36)];
+  return s;
 }
 
 // Prepend the canonical opening at position 0 of the first system message.
-// If a message already opens with it, leave everything untouched.
+// PURE: the caller's message objects are never mutated (a shallow copy of
+// every touched message is made) and the function is idempotent — a prompt
+// that already opens with the canonical opening (string, or first text part
+// of an array) is passed through untouched.
 export function prependCanonicalOpening(messages) {
-  const msgs = Array.isArray(messages) ? messages.map((m) => m) : [];
+  const msgs = Array.isArray(messages) ? messages.map((m) => ({ ...m })) : [];
   if (msgs.length === 0) {
     return [{ role: 'system', content: CANONICAL_OPENING }];
   }
   const firstSystemIdx = msgs.findIndex((m) => m && m.role === 'system');
-  const target = firstSystemIdx === -1 ? null : msgs[firstSystemIdx];
-
-  const opensWith = (text) =>
-    typeof text === 'string' && text.trimStart().startsWith(CANONICAL_OPENING);
-
-  if (!target) {
+  if (firstSystemIdx === -1) {
     return [{ role: 'system', content: CANONICAL_OPENING }, ...msgs];
   }
-  if (opensWith(target.content)) return msgs;
+  const target = msgs[firstSystemIdx];
 
   if (typeof target.content === 'string') {
+    if (target.content.trimStart().startsWith(CANONICAL_OPENING)) return msgs;
     target.content = target.content.trim()
       ? CANONICAL_OPENING + '\n\n' + target.content
       : CANONICAL_OPENING;
   } else if (Array.isArray(target.content)) {
+    const firstText = target.content.find(
+      (p) => p && p.type === 'text' && typeof p.text === 'string',
+    );
+    if (firstText && firstText.text.trimStart().startsWith(CANONICAL_OPENING)) return msgs;
     target.content = [{ type: 'text', text: CANONICAL_OPENING }, ...target.content];
+  } else if (target.content == null) {
+    target.content = CANONICAL_OPENING;
   } else {
+    // Unsupported content shape: give the gate the canonical opening so the
+    // request is well-formed rather than smuggling a guess.
     target.content = CANONICAL_OPENING;
   }
   return msgs;
@@ -143,20 +156,41 @@ export class ChatClient {
   }
 
   // POST /api/v1/chat/completions — returns the raw Response for SSE.
-  async chatCompletion(payload, { signal } = {}) {
+  // `timeoutMs` bounds TIME-TO-FIRST-BYTE only: once the SSE stream is
+  // flowing there is no deadline (a long generation is not a stall), but an
+  // upstream that never answers can no longer hang the request forever.
+  async chatCompletion(payload, { signal, timeoutMs = 120_000 } = {}) {
     const url = apiBase().replace(/\/+$/, '') + endpoints.chat;
-    const res = await fetch(url, {
-      method: 'POST',
-      signal,
-      headers: {
-        'User-Agent': 'ai-sdk/openai-compatible/1.0.0/codebuff',
-        Accept: 'application/json, text/event-stream',
-        'Content-Type': 'application/json',
-        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
-        ...(this.userId ? { 'x-freebuff-acting-user-id': this.userId } : {}),
-      },
-      body: JSON.stringify(payload),
+    const ctrl = new AbortController();
+    const ttfbError = new UpstreamError({
+      status: 504,
+      code: 'upstream_timeout',
+      message: `upstream chat did not respond within ${timeoutMs}ms`,
     });
+    const timer = setTimeout(() => ctrl.abort(ttfbError), timeoutMs);
+    const onAbort = () => ctrl.abort(signal.reason);
+    if (signal) {
+      if (signal.aborted) ctrl.abort(signal.reason);
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: {
+          'User-Agent': CHAT_USER_AGENT,
+          Accept: 'application/json, text/event-stream',
+          'Content-Type': 'application/json',
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+          ...(this.userId ? { 'x-freebuff-acting-user-id': this.userId } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', onAbort);
+    }
     if (!res.ok) {
       const text = await res.text();
       let json = null;

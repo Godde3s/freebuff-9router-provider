@@ -7,6 +7,13 @@
 // the CLI uses, and it identifies itself with the upstream-required client
 // opening (see CANONICAL_OPENING).
 
+// Package version — kept in sync with package.json by hand (single source of
+// truth for /health and the index route, no JSON import needed on Node 18).
+export const VERSION = '1.1.0';
+
+// Fixed timestamp for /v1/models entries (OpenAI clients expect a `created`).
+export const MODELS_CREATED = 1756684800; // 2025-09-01T00:00:00Z
+
 // Origins are read lazily so tests can point them at a mock upstream.
 export const loginBase = () => process.env.FB9R_LOGIN_BASE || 'https://freebuff.com';
 export const apiBase = () => process.env.FB9R_API_BASE || 'https://codebuff.com';
@@ -103,8 +110,13 @@ export const MODELS = [
 export const DEFAULT_MODEL = MODELS[0].id; // GLM 5.3 Flash
 
 export function resolveModel(name) {
-  if (!name || typeof name !== 'string') return DEFAULT_MODEL;
+  // Absent or empty -> the default model. A NON-STRING value (number, object,
+  // boolean from a sloppy client) is a bad request, not a reason to silently
+  // run a different model than the caller asked for.
+  if (name == null || name === '') return DEFAULT_MODEL;
+  if (typeof name !== 'string') return null;
   const n = name.trim().toLowerCase();
+  if (!n) return DEFAULT_MODEL;
   for (const m of MODELS) {
     if (m.id.toLowerCase() === n || m.aliases.includes(n)) return m.id;
   }

@@ -31,6 +31,17 @@ export class FreebuffSession {
     this.active = null; // { instanceId, model, expiresAt, remainingMs, raw }
     this.stopped = false;
     this._timer = null;
+    // Serializes seat transitions (ensure/release). Without this, two
+    // concurrent chats for different models can interleave
+    // refresh→release→admit and one of them ends up sending chat with a
+    // released instanceId.
+    this._mx = Promise.resolve();
+  }
+
+  _locked(fn) {
+    const run = this._mx.then(fn, fn);
+    this._mx = run.then(() => {}, () => {});
+    return run;
   }
 
   setToken(token) {
@@ -57,13 +68,19 @@ export class FreebuffSession {
 
   // Ensure a live seat on `model`. If a seat is held on another model,
   // release it and re-admit (model is immutable mid-session upstream).
-  async ensure(model) {
+  // Serialized: every caller sees a consistent seat, never a half-switched
+  // one.
+  ensure(model) {
+    return this._locked(() => this._ensureLocked(model));
+  }
+
+  async _ensureLocked(model) {
     if (!this.token) throw new UpstreamError({ status: 401, message: 'not logged in — run `fb9r login`' });
     if (this.active) {
       const fresh = await this.refresh();
       if (fresh && this.active.model === model) return this.active;
       if (fresh && this.active.model !== model) {
-        await this.release();
+        await this._releaseLocked();
       }
     }
     return this.admit(model);
@@ -132,7 +149,13 @@ export class FreebuffSession {
     }
   }
 
-  async release() {
+  // Public release: serialized so it cannot interleave with an in-flight
+  // ensure() on another request.
+  release() {
+    return this._locked(() => this._releaseLocked());
+  }
+
+  async _releaseLocked() {
     if (!this.active) return false;
     const instanceId = this.active.instanceId;
     this._stopKeepalive();

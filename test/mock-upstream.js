@@ -22,8 +22,12 @@ export function startMockUpstream({
   admissionStatus = 'active',
   admissionModel = 'z-ai/glm-5.3-flash',
   admissionHttpStatus = 200,
+  admissionOkStatus = null,    // when set: HTTP 200 body {status: admissionOkStatus} (in-200 refusal)
+  admissionDelayMs = 0,        // artificial admission latency (concurrency tests)
   chatStatus = 200,
   chatBody = null,       // raw response body override (SSE text)
+  chatAbortAfterFirst = false, // write one chunk, then destroy the socket
+  chat409Once = false,   // first chat call answers 409 superseded, later ones succeed
   meBody = { id: 'acct_123', email: 'test@example.com' },
   runId = 'run_mock_1',
 } = {}) {
@@ -87,21 +91,33 @@ export function startMockUpstream({
       if (req.url === '/api/v1/freebuff/session/admission') {
         state.admissionCalls++;
         state.activeInstance = 'inst_' + state.admissionCalls;
-        if (admissionHttpStatus !== 200) {
-          return json(admissionHttpStatus, {
+        const respond = () => {
+          if (admissionOkStatus) {
+            return json(200, {
+              status: admissionOkStatus,
+              message: 'mock in-200 refusal',
+              retryAfterMs: 4321,
+            });
+          }
+          if (admissionHttpStatus !== 200) {
+            return json(admissionHttpStatus, {
+              status: admissionStatus,
+              message: 'mock admission limit',
+              retryAfterMs: 1234,
+            });
+          }
+          return json(200, {
             status: admissionStatus,
-            message: 'mock admission limit',
-            retryAfterMs: 1234,
+            instanceId: state.activeInstance,
+            model: admissionModel,
+            admittedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+            remainingMs: 3600_000,
           });
-        }
-        return json(200, {
-          status: admissionStatus,
-          instanceId: state.activeInstance,
-          model: admissionModel,
-          admittedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-          remainingMs: 3600_000,
-        });
+        };
+        if (admissionDelayMs > 0) setTimeout(respond, admissionDelayMs);
+        else respond();
+        return;
       }
       if (req.url === '/api/v1/freebuff/session' && req.method === 'GET') {
         state.refreshCalls++;
@@ -140,6 +156,15 @@ export function startMockUpstream({
         state.chatCalls++;
         state.lastChatPayload = body;
         state.lastChatHeaders = req.headers;
+        if (chat409Once && state.chatCalls === 1) {
+          return json(409, { status: 'superseded', message: 'another client took the seat' });
+        }
+        if (chatAbortAfterFirst) {
+          res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          res.write(sseChunk({ content: 'Hello' }));
+          setTimeout(() => res.destroy(), 20);
+          return;
+        }
         if (chatStatus !== 200) {
           return json(chatStatus, { status: 'rate_limited', message: 'mock rate limit', retryAfterMs: 1234 });
         }

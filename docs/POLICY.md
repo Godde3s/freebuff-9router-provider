@@ -1,5 +1,10 @@
 # Honest-client policy
 
+The complete, sourced list of what the free tier actually enforces lives in
+[LIMITS.md](./LIMITS.md) — seat rules, quota pools, IP/country gates, trust
+levels, availability windows. This page is the *design* side: what this
+provider does on purpose, and what it refuses to do on purpose.
+
 Freebuff gives free access to strong models (GLM 5.3 Flash, DeepSeek V4.1
 Flash, MiMo 2.6 Flash, Solar Mini 4 are unmetered at full access) funded by
 text ads shown inside Freebuff's own products. Its servers run explicit

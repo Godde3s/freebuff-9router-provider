@@ -13,13 +13,13 @@ import { login, logout } from '../src/login.js';
 import { loadCredentials, importFromOfficialCli, clearCredentials } from '../src/credentials.js';
 import { fetchMe, FreebuffSession } from '../src/session.js';
 import { createServer } from '../src/server.js';
-import { MODELS, DEFAULT_MODEL } from '../src/constants.js';
+import { MODELS, DEFAULT_MODEL, VERSION } from '../src/constants.js';
 
 const HELP = `
-fb9r — Freebuff provider for 9router
+fb9r — Freebuff provider for 9router (v${VERSION})
 
 USAGE
-  fb9r login                 Log in once with the official browser flow
+  fb9r login [--no-open]     Log in once with the official browser flow
   fb9r serve [options]       Run the local OpenAI-compatible provider
   fb9r status                Show login + session state
   fb9r models                List available models
@@ -31,7 +31,10 @@ USAGE
 SERVE OPTIONS
   --port <n>                 Port to listen on (default 8787, env FB9R_PORT)
   --host <addr>              Bind address (default 127.0.0.1)
-  --api-key <key>            Require this key on chat calls (env FB9R_API_KEY)
+  --api-key <key>            Require this key on chat + session release (env FB9R_API_KEY)
+
+LOGIN OPTIONS
+  --no-open                  Print the URL but never launch a browser
 
 ENV
   FB9R_CONFIG_DIR            Config directory (default ~/.config/freebuff-9router)
@@ -47,12 +50,26 @@ function argValue(args, flag, fallback) {
   return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
 }
 
+function hasFlag(args, flag) {
+  return args.includes(flag);
+}
+
+function portNumber(raw) {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0 || n > 65535) {
+    console.error(`  invalid port: "${raw}" — expected an integer between 0 and 65535`);
+    process.exit(1);
+  }
+  return n;
+}
+
 async function main() {
   const [, , cmd, ...rest] = process.argv;
 
   switch (cmd || 'help') {
     case 'login': {
-      const cred = await login({ onPending: (p) => { if (p?.waiting) process.stdout.write('.'); } });
+      const noOpen = hasFlag(rest, '--no-open');
+      const cred = await login({ openBrowser: !noOpen, onPending: (p) => { if (p?.waiting) process.stdout.write('.'); } });
       console.log(`\n\n  Logged in as ${cred.name || cred.email || cred.id || 'unknown'} <${cred.email || 'n/a'}>`);
       console.log('  Now run:  fb9r serve\n');
       break;
@@ -101,7 +118,7 @@ async function main() {
 
     case 'serve': {
       const args = rest;
-      const port = Number(argValue(args, '--port', process.env.FB9R_PORT || 8787));
+      const port = portNumber(argValue(args, '--port', process.env.FB9R_PORT || 8787));
       const host = argValue(args, '--host', '127.0.0.1');
       const apiKey = argValue(args, '--api-key', process.env.FB9R_API_KEY || null);
 
@@ -120,17 +137,29 @@ async function main() {
           await session.stop(); // DELETE the free seat upstream
         } catch { /* best effort */ }
         server.close(() => process.exit(0));
+        server.closeAllConnections?.();
         setTimeout(() => process.exit(0), 2000).unref();
       };
       process.on('SIGINT', release);
       process.on('SIGTERM', release);
 
+      server.on('error', (err) => {
+        if (err?.code === 'EADDRINUSE') {
+          console.error(`  port ${port} on ${host} is already in use — is another fb9r serve running?\n  try:  fb9r serve --port ${Number(port) + 1 || 8788}`);
+          process.exit(1);
+        }
+        console.error('  server error:', err?.message || err);
+        process.exit(1);
+      });
+
       server.listen(port, host, () => {
+        const bound = server.address();
+        const boundPort = typeof bound === 'object' && bound ? bound.port : port;
         console.log(`
-  freebuff-9router-provider listening on http://${host}:${port}
+  freebuff-9router-provider v${VERSION} listening on http://${host}:${boundPort}
 
   9router  ->  Add Provider -> OpenAI Compatible
-             Base URL : http://${host}:${port}/v1
+             Base URL : http://${host}:${boundPort}/v1
              API key  : ${apiKey ? '(your --api-key)' : 'anything (no local gate set)'}
 
   models   : ${MODELS.map((m) => m.id).join(', ')}
