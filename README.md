@@ -1,6 +1,6 @@
 # freebuff-9router-provider
 
-**Use Freebuff's free models (GLM 5.3 Flash, DeepSeek V4 Flash, MiMo 2.5, …) as a provider inside [9router](https://github.com/decolua/9router)** — or any tool that speaks the OpenAI API (Claude Code via 9router, OpenCode, Hermes Agent, curl, …).
+**Use Freebuff's free models (GLM , DeepSeek , MiMo ,Hy , …) as a provider inside [9router](https://github.com/decolua/9router)** — or any tool that speaks the OpenAI API (Claude Code via 9router, OpenCode, Hermes Agent, curl, …).
 
 This is **not another router**. It is a tiny local sidecar (zero dependencies, Node ≥ 18) that:
 
