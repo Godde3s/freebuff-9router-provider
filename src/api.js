@@ -4,6 +4,7 @@
 // did not ask for, and nothing is disguised.
 
 import { apiBase, loginBase, PLAIN_USER_AGENT } from './constants.js';
+import { deviceRequestHeaders, noteDeviceKeyError } from './device.js';
 
 export class UpstreamError extends Error {
   constructor({ status, code, message, retryAfterMs, body }) {
@@ -61,16 +62,27 @@ export async function apiFetch(path, {
   }
   let res;
   try {
+    const bodyStr = body !== undefined ? JSON.stringify(body) : undefined;
+    // Opt-in device signing (FB9R_DEVICE_SIGNING=1): signs the EXACT bytes
+    // sent, over the request path — the upstream contract. Default (off) adds
+    // no headers at all, so the wire is byte-identical to v1.1.2.
+    const deviceHeaders = await deviceRequestHeaders({
+      token,
+      method,
+      url,
+      body: bodyStr,
+    });
     res = await fetch(url, {
       method,
       signal: ctrl.signal,
       headers: {
         'User-Agent': PLAIN_USER_AGENT,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(bodyStr !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...deviceHeaders,
         ...headers,
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: bodyStr,
     });
     return await readJsonResponse(res);
   } finally {
@@ -92,6 +104,8 @@ async function readJsonResponse(res) {
 
   if (!res.ok) {
     const code = json?.status || json?.error || json?.code || null;
+    // A signed request that named an unknown device key -> re-register next time.
+    if (typeof code === 'string') noteDeviceKeyError(code);
     throw new UpstreamError({
       status: res.status,
       code: typeof code === 'string' ? code : null,

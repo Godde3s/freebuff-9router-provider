@@ -5,11 +5,12 @@
 //     rewritten, and no "foreign marker" stripping of any kind exists here;
 //   * ids are plain random values in the CLI's own shapes — no proxy-shaped
 //     ids, no fingerprint games, no header tricks;
-//   * cost_mode is always 'free' and wallet spend limit is always 0.
+//   * cost_mode is always 'free' — the free lane only; nothing is ever spent.
 
 import crypto from 'node:crypto';
 import { CANONICAL_OPENING, CHAT_USER_AGENT, apiBase, clampEffort, modelEntry } from './constants.js';
 import { apiFetch, endpoints, UpstreamError } from './api.js';
+import { deviceRequestHeaders } from './device.js';
 
 const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
 function clientId() {
@@ -175,6 +176,15 @@ export class ChatClient {
     }
     let res;
     try {
+      const bodyStr = JSON.stringify(payload);
+      // Opt-in device signing over the EXACT body bytes sent (upstream
+      // contract); off by default, so the wire is unchanged.
+      const deviceHeaders = await deviceRequestHeaders({
+        token: this.token,
+        method: 'POST',
+        url,
+        body: bodyStr,
+      });
       res = await fetch(url, {
         method: 'POST',
         signal: ctrl.signal,
@@ -184,8 +194,9 @@ export class ChatClient {
           'Content-Type': 'application/json',
           ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
           ...(this.userId ? { 'x-freebuff-acting-user-id': this.userId } : {}),
+          ...deviceHeaders,
         },
-        body: JSON.stringify(payload),
+        body: bodyStr,
       });
     } finally {
       clearTimeout(timer);

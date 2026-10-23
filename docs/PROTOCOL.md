@@ -47,9 +47,9 @@ mid-session; seats expire after ~1 h.
 
 | Call | When | Headers (besides auth) |
 |---|---|---|
-| `POST /api/v1/freebuff/session/admission` | acquire | `x-freebuff-model`, `x-freebuff-wallet-spend-limit: 0`, `x-fb-timezone`, `x-freebuff-first-tab-discount: 0` |
-| `GET /api/v1/freebuff/session` | keepalive ≈30 s ±20% | `x-freebuff-instance-id` |
-| `DELETE /api/v1/freebuff/session` | release | `x-freebuff-instance-id` |
+| `POST /api/v1/freebuff/session/admission` | acquire | `x-freebuff-model`, `x-freebuff-wallet-spend-limit: session`, `x-fb-timezone`, `x-freebuff-client-version` |
+| `GET /api/v1/freebuff/session` | keepalive ≈30 s ±20% | `x-freebuff-instance-id`, `x-freebuff-client-version` |
+| `DELETE /api/v1/freebuff/session` | release | `x-freebuff-instance-id`, `x-freebuff-client-version` |
 
 Admission responses this provider maps: `active` (+`instanceId`), and the
 typed states `model_locked`, `model_unavailable`, `consent_required`,
@@ -77,6 +77,42 @@ A stalled upstream never hangs the caller: non-stream JSON calls have a
 countdown covering headers **and** body (typed `504 upstream_timeout`), and
 chat has a time-to-first-byte deadline that stops once the SSE stream is
 flowing.
+
+## 3b. October 2026 wire changes (protocol alignment, v1.2.0)
+
+Verified against the official CLI 0.2.34 (2026-10-22) and the public
+`CodebuffAI/freebuff` snapshot of 2026-10-23:
+
+1. **Admission wallet header semantics changed.** The dedicated admission
+   route now *refuses a POST without* `x-freebuff-wallet-spend-limit`, and
+   the current CLI sends the value `session` ("its value no longer limits
+   anything — wallet consent is client-side"). The old `0` /
+   `x-freebuff-first-tab-discount: 0` pair is gone from the wire; this
+   provider sends `session` on admission and no first-tab header anywhere.
+2. **`x-freebuff-client-version`** is an observe-only header the CLI sends on
+   session calls; this provider sends `fb9r/<version>` — honest build id.
+3. **Device-key signing (new, optional).** The CLI now generates an Ed25519
+   key pair per install (`device-key.json`), registers it once per
+   (account, API host) with `POST /api/v1/freebuff/device-keys`
+   (`{publicKey, client:"cli"}` → `{keyId}`), and signs catalog/session/chat
+   requests with three headers:
+   `x-freebuff-device-key`, `x-freebuff-device-ts`, `x-freebuff-device-sig`
+   over the payload
+   `freebuff-device-v1\nMETHOD\npath\ntsMs\nhex(sha256(body))\nfetchId`.
+   Signing only happens in the CLI's "catalog mode"; "fallback mode" (the
+   per-model flow this provider implements) sends nothing and remains
+   accepted. This provider mirrors that: unsigned by default, opt-in signing
+   with `FB9R_DEVICE_SIGNING=1` (src/device.js), including the
+   forget-and-re-register path on `device_key_*` unknown errors.
+4. **Chat User-Agent** bumped to `ai-sdk/openai-compatible/1.0.25/codebuff`
+   (the version the current CLI sends).
+5. **Catalog mode exists but is NOT implemented here on purpose:** the CLI's
+   new primary flow runs a single `base3-free-catalog` root with server
+   catalog handles and `x-freebuff-catalog-protocol` /
+   `x-freebuff-catalog-fetch` headers. The legacy per-model roots
+   (`base3-free-glm-5-3-flash`, …) remain registered and allowlisted
+   upstream, which is what this provider uses. If upstream ever flips the
+   switch, device signing here is already wire-ready.
 
 ## 4. Agent runs
 

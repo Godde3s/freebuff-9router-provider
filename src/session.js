@@ -3,7 +3,7 @@
 // same single-seat rule: ONE account holds ONE seat.
 
 import { apiFetch, endpoints, UpstreamError } from './api.js';
-import { SESSION_POLL_INTERVAL_MS } from './constants.js';
+import { SESSION_POLL_INTERVAL_MS, VERSION, CLIENT_VERSION_HEADER } from './constants.js';
 
 function timezoneHeader() {
   try {
@@ -16,9 +16,9 @@ function timezoneHeader() {
 function sessionHeaders(extra = {}) {
   const tz = timezoneHeader();
   return {
-    // Honest defaults: no wallet spend, no first-tab discount claim.
-    'x-freebuff-wallet-spend-limit': '0',
-    'x-freebuff-first-tab-discount': '0',
+    // Observe-only: ties a server-side refusal line to the build that saw it
+    // (the CLI sends its own version the same way).
+    [CLIENT_VERSION_HEADER]: `fb9r/${VERSION}`,
     ...(tz ? { 'x-fb-timezone': tz } : {}),
     ...extra,
   };
@@ -90,7 +90,15 @@ export class FreebuffSession {
     const res = await apiFetch(endpoints.sessionAdmission, {
       method: 'POST',
       token: this.token,
-      headers: sessionHeaders({ 'x-freebuff-model': model }),
+      headers: sessionHeaders({
+        'x-freebuff-model': model,
+        // The dedicated admission route REFUSES a POST without this header
+        // (upstream comment, 2026-10). Its value no longer limits anything —
+        // wallet consent is client-side — and the current CLI sends
+        // 'session'. The provider never spends: cost_mode stays 'free' and
+        // the free lane is the only thing ever requested.
+        'x-freebuff-wallet-spend-limit': 'session',
+      }),
       body: {},
       timeoutMs: 20_000,
     });

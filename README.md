@@ -141,7 +141,8 @@ sourced history of the upstream displayNames for these rows, see
 | `z-ai/glm-5.3-flash` (GLM 5.3 Flash) | `glm-5.3-flash`, `glm` | **unmetered** at full access — default |
 | `deepseek/deepseek-v4-flash` (DeepSeek V4 Flash) | `deepseek-v4-flash`, `deepseek` | **unmetered** at full access |
 | `mimo/mimo-v2.5` (MiMo 2.5) | `mimo-v2.5`, `mimo` | **unmetered** at full access |
-| `upstage/solar-mini4` (Solar Mini 4) | `solar-mini-4`, `solar` | **unmetered**, 524K ctx, text only |
+| `upstage/solar-mini4` (Solar Mini 4) | `solar-mini-4`, `solar-mini` | **unmetered**, 524K ctx, text only |
+| `upstage/solar-pro4` (Solar Pro 4) | `solar-pro-4`, `solar-pro` | **unmetered**, 524K ctx, text only |
 | `minimax/minimax-m3` (MiniMax M3) | `minimax-m3`, `minimax` | capacity-dependent |
 | `openai/gpt-6-luna` (GPT-6 Luna) | `gpt-6-luna`, `luna` | US / paid plans |
 | `stealth/space-bunny-alpha` (Space Bunny Alpha) | `space-bunny-alpha` | beta, retains prompts |

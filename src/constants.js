@@ -9,7 +9,7 @@
 
 // Package version — kept in sync with package.json by hand (single source of
 // truth for /health and the index route, no JSON import needed on Node 18).
-export const VERSION = '1.1.2';
+export const VERSION = '1.2.0';
 
 // Fixed timestamp for /v1/models entries (OpenAI clients expect a `created`).
 export const MODELS_CREATED = 1756684800; // 2025-09-01T00:00:00Z
@@ -18,8 +18,9 @@ export const MODELS_CREATED = 1756684800; // 2025-09-01T00:00:00Z
 export const loginBase = () => process.env.FB9R_LOGIN_BASE || 'https://freebuff.com';
 export const apiBase = () => process.env.FB9R_API_BASE || 'https://codebuff.com';
 
-// The official CLI pins this UA on chat calls only (model-provider.ts).
-export const CHAT_USER_AGENT = 'ai-sdk/openai-compatible/1.0.0/codebuff';
+// The official CLI pins this UA on chat calls only. Bumped to the version the
+// current CLI (0.2.34, 2026-10-22) sends (cli normalizeClientUserAgent).
+export const CHAT_USER_AGENT = 'ai-sdk/openai-compatible/1.0.25/codebuff';
 // Non-chat calls go out with the plain runtime UA, like the CLI's Bun fetch.
 export const PLAIN_USER_AGENT = `node/${process.versions.node}`;
 
@@ -77,9 +78,17 @@ export const MODELS = [
     id: 'upstage/solar-mini4',
     agent: 'base3-free-solar-mini4',
     label: 'Solar Mini 4',
-    aliases: ['solar-mini-4', 'solar-mini4', 'solar'],
+    aliases: ['solar-mini-4', 'solar-mini4', 'solar-mini'],
     unmetered: true,
     note: "Upstage's fast compact model, 524K context, text only",
+  },
+  {
+    id: 'upstage/solar-pro4',
+    agent: 'base3-free-solar-pro4',
+    label: 'Solar Pro 4',
+    aliases: ['solar-pro-4', 'solar-pro4', 'solar-pro'],
+    unmetered: true,
+    note: "Upstage's larger, stronger model, 524K context, text only",
   },
   {
     id: 'minimax/minimax-m3',
@@ -148,3 +157,28 @@ export function clampEffort(model, effort) {
   if (e === 'auto') return undefined;
   return entry.defaultEffort;
 }
+
+// --- Device-key signing (optional, mirrors common/src/util/freebuff-device-signing.ts) ---
+//
+// The current official CLI (0.2.34, 2026-10-22) signs catalog/session/chat
+// requests with an Ed25519 device key registered per (account, API host).
+// Signing there only happens in "catalog mode"; the legacy per-model flow
+// ("fallback mode") sends nothing and is still accepted upstream. This
+// provider keeps the legacy flow by default and offers the signing half as an
+// OPT-IN (FB9R_DEVICE_SIGNING=1) so the wire shape is ready if upstream ever
+// starts requiring it. Nothing here disguises anything: the key identifies
+// this one install for this one account, exactly like the CLI's.
+export const DEVICE_SIGNING_ENV = 'FB9R_DEVICE_SIGNING';
+export const DEVICE_KEYS_PATH = '/api/v1/freebuff/device-keys';
+export const DEVICE_KEY_HEADER = 'x-freebuff-device-key';
+export const DEVICE_TIMESTAMP_HEADER = 'x-freebuff-device-ts';
+export const DEVICE_SIGNATURE_HEADER = 'x-freebuff-device-sig';
+export const DEVICE_CLIENT = 'cli';
+// The signature payload's first line and separator layout — upstream contract
+// (freebuffDeviceSignaturePayload): join('\n') of these fields.
+export const DEVICE_SIGNATURE_VERSION = 'freebuff-device-v1';
+
+// Observe-only header the current CLI sends on session calls: ties a
+// server-side refusal line to the client build that saw it. We send OUR
+// version — honest identification, per the project's rules.
+export const CLIENT_VERSION_HEADER = 'x-freebuff-client-version';

@@ -58,7 +58,7 @@ test('server: non-stream chat end-to-end (session + run + envelope + finish)', a
     const adm = mock.state.requests.find((q) => q.url === '/api/v1/freebuff/session/admission');
     assert.equal(adm.headers['x-freebuff-model'], 'z-ai/glm-5.3-flash');
     const chatReq = mock.state.requests.find((q) => q.url === '/api/v1/chat/completions');
-    assert.equal(chatReq.headers['user-agent'], 'ai-sdk/openai-compatible/1.0.0/codebuff');
+    assert.equal(chatReq.headers['user-agent'], 'ai-sdk/openai-compatible/1.0.25/codebuff');
     assert.equal(chatReq.headers.authorization, 'Bearer tok_test_123');
     assert.equal(chatReq.headers['x-freebuff-acting-user-id'], 'acct_123');
     assert.equal(chatReq.body.model, 'z-ai/glm-5.3-flash');

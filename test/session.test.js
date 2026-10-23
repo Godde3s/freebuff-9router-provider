@@ -24,8 +24,8 @@ test('session: admission acquires a seat and refresh keeps it alive', async () =
     // admission carried the required headers
     const adm = mock.state.requests.find((r) => r.url === '/api/v1/freebuff/session/admission');
     assert.equal(adm.headers['x-freebuff-model'], 'z-ai/glm-5.3-flash');
-    assert.equal(adm.headers['x-freebuff-wallet-spend-limit'], '0');
-    assert.equal(adm.headers['x-freebuff-first-tab-discount'], '0');
+    assert.equal(adm.headers['x-freebuff-wallet-spend-limit'], 'session');
+    assert.ok(adm.headers['x-freebuff-client-version']); // observe-only build id
     assert.ok(adm.headers['x-fb-timezone']);
 
     await s.stop();

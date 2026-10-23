@@ -94,7 +94,8 @@ fb9r serve --api-key mylocal  # اجباری‌کردن کلید برای درخ
 | `z-ai/glm-5.3-flash` (GLM 5.3 Flash) | `glm-5.3-flash`، `glm` | **نامحدود** با دسترسی کامل — پیش‌فرض |
 | `deepseek/deepseek-v4-flash` (DeepSeek V4 Flash) | `deepseek-v4-flash`، `deepseek` | **نامحدود** با دسترسی کامل |
 | `mimo/mimo-v2.5` (MiMo 2.5) | `mimo-v2.5`، `mimo` | **نامحدود** با دسترسی کامل |
-| `upstage/solar-mini4` (Solar Mini 4) | `solar-mini-4`، `solar` | **نامحدود**، ۵۲۴K کانتکست، فقط متن |
+| `upstage/solar-mini4` (Solar Mini 4) | `solar-mini-4`، `solar-mini` | **نامحدود**، ۵۲۴K کانتکست، فقط متن |
+| `upstage/solar-pro4` (Solar Pro 4) | `solar-pro-4`، `solar-pro` | **نامحدود**، ۵۲۴K کانتکست، فقط متن |
 | `minimax/minimax-m3` (MiniMax M3) | `minimax-m3`، `minimax` | بسته به ظرفیت |
 | `openai/gpt-6-luna` (GPT-6 Luna) | `gpt-6-luna`، `luna` | آمریکا / پلن پولی |
 | `stealth/space-bunny-alpha` (Space Bunny Alpha) | `space-bunny-alpha` | بتا، پرامپت‌ها را نگه می‌دارد |
